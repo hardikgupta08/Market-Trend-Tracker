@@ -27,6 +27,10 @@ PICKS_SCHEDULE_UTC = {
 }
 PICKS_PER_REGION = int(os.getenv("PICKS_PER_REGION", "12"))
 
+# Startup ordering: market snapshots first, then news, then the (heavy) picks screen.
+NEWS_STARTUP_DELAY_SECONDS = int(os.getenv("NEWS_STARTUP_DELAY_SECONDS", "15"))
+PICKS_STARTUP_DELAY_SECONDS = int(os.getenv("PICKS_STARTUP_DELAY_SECONDS", "120"))
+
 # On-demand caches (charts, sector/company news).
 CHART_CACHE_SECONDS = int(os.getenv("CHART_CACHE_SECONDS", "900"))
 INTRADAY_CHART_CACHE_SECONDS = int(os.getenv("INTRADAY_CHART_CACHE_SECONDS", "60"))

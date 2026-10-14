@@ -5,6 +5,7 @@ import logging
 import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -19,6 +20,7 @@ _news: dict[str, dict] = {}
 _picks: dict[str, dict] = {}
 _picks_attempted: dict[str, float] = {}
 _running: set[str] = set()
+_started_at = 0.0
 _state_lock = threading.Lock()
 _refresh_locks = {name: threading.Lock() for name in ("markets", "news", *(f"picks:{rid}" for rid in REGIONS))}
 
@@ -44,11 +46,14 @@ def load_persisted():
 
 
 def start_scheduler():
+    global _started_at
+    _started_at = time.time()
     first = datetime.now(timezone.utc)
     scheduler.add_job(refresh_markets, "interval", minutes=config.REFRESH_INTERVAL_MINUTES,
                       id="markets", next_run_time=first)
+    # News is secondary; start it a little later so the first market snapshot isn't competing for CPU.
     scheduler.add_job(refresh_news, "interval", minutes=config.NEWS_INTERVAL_MINUTES,
-                      id="news", next_run_time=first)
+                      id="news", next_run_time=first + timedelta(seconds=config.NEWS_STARTUP_DELAY_SECONDS))
     scheduler.start()
 
 
@@ -81,18 +86,20 @@ def _run_job(name: str, fn):
 
 
 def refresh_markets():
+    def one(rid: str) -> str:
+        snap = market.build_snapshot(REGIONS[rid])
+        with _state_lock:
+            _snapshots[rid] = snap
+        store.save_snapshot(f"market:{rid}", snap, snap["updated_at"])
+        _record_history(snap)
+        if picks_due(rid):
+            threading.Thread(target=refresh_picks, args=(rid,), daemon=True).start()
+        return f"{rid}: {sum(len(v) for v in snap['sector_rows'].values())} stocks"
+
     def work():
-        parts = []
-        for rid, region in REGIONS.items():
-            snap = market.build_snapshot(region)
-            with _state_lock:
-                _snapshots[rid] = snap
-            store.save_snapshot(f"market:{rid}", snap, snap["updated_at"])
-            _record_history(snap)
-            if picks_due(rid):
-                threading.Thread(target=refresh_picks, args=(rid,), daemon=True).start()
-            parts.append(f"{rid}: {sum(len(v) for v in snap['sector_rows'].values())} stocks")
-        return "; ".join(parts)
+        # Regions are fetched concurrently (mostly network wait), and each is served as soon as it is ready.
+        with ThreadPoolExecutor(max_workers=len(REGIONS)) as pool:
+            return "; ".join(pool.map(one, REGIONS))
     return _run_job("markets", work)
 
 
@@ -114,7 +121,10 @@ def _last_scheduled_picks(rid: str, now: datetime) -> datetime:
 
 def picks_due(rid: str) -> bool:
     """True when the region's picks predate its most recent daily slot (also covers
-    first start and a server that slept through the slot). Retries back off 30 min."""
+    first start and a server that slept through the slot). Retries back off 30 min.
+    Held back for a short grace period after startup so the first page load stays fast."""
+    if time.time() - _started_at < config.PICKS_STARTUP_DELAY_SECONDS:
+        return False
     if time.time() - _picks_attempted.get(rid, 0) < 1800:
         return False
     current = _picks.get(rid)

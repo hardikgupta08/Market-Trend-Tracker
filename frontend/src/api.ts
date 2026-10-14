@@ -34,7 +34,7 @@ interface State<T> {
 
 /**
  * Fetch `path` whenever it (or `version`) changes. Keeps the previous data while
- * re-fetching the same path so panels don't flash. Retries 503 ("still loading") every 5s.
+ * re-fetching the same path so panels don't flash. Retries 503 ("still loading") every 2s.
  */
 export function useApi<T>(path: string | null, version: unknown = 0): State<T> {
   const [state, setState] = useState<State<T>>({ data: null, error: null, loading: !!path });
@@ -61,7 +61,7 @@ export function useApi<T>(path: string | null, version: unknown = 0): State<T> {
           const status = e instanceof ApiError ? e.status : 0;
           const msg = e instanceof Error ? e.message : String(e);
           setState((s) => ({ ...s, error: msg, loading: status === 503 }));
-          if (status === 503) timer = window.setTimeout(load, 5000);
+          if (status === 503) timer = window.setTimeout(load, 2000);
         });
     load();
     return () => {

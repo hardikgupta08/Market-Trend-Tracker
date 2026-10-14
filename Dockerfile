@@ -11,8 +11,11 @@ FROM python:3.12-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 COPY backend/requirements.txt backend/requirements.txt
-RUN pip install -r backend/requirements.txt
+RUN pip install -r backend/requirements.txt \
+ && python -m compileall -q /usr/local/lib/python3.12/site-packages
 COPY backend/app backend/app
+# Pre-compile bytecode so the (slow, shared-CPU) container doesn't do it on every cold start.
+RUN python -m compileall -q backend/app
 COPY --from=frontend /app/frontend/dist frontend/dist
 WORKDIR /app/backend
 # Render (and most hosts) provide $PORT; default to 8000 locally.
