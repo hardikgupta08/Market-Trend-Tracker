@@ -134,9 +134,118 @@ export interface ChartResponse {
 export interface Status {
   server_time: string;
   refresh_interval_minutes: number;
+  news_interval_minutes: number;
+  picks_schedule_utc: Record<RegionId, string>;
   running: string[];
   next_run: Record<string, string | null>;
-  regions: Record<RegionId, { updated_at: string | null; news_updated_at: string | null; market_state: string | null }>;
+  regions: Record<
+    RegionId,
+    {
+      updated_at: string | null;
+      news_updated_at: string | null;
+      market_state: string | null;
+      picks_generated_at: string | null;
+    }
+  >;
+}
+
+export type Stance = "Bullish" | "Positive" | "Neutral" | "Cautious" | "Bearish";
+
+export interface Returns {
+  day: number | null;
+  ret_1w: number | null;
+  ret_1m: number | null;
+  ret_3m: number | null;
+  ret_ytd: number | null;
+  ret_1y: number | null;
+}
+
+export interface BriefStock {
+  symbol: string;
+  name: string;
+  price: number | null;
+  change_pct: number | null;
+  change_52w_pct: number | null;
+}
+
+export interface SectorBrief {
+  id: string;
+  name: string;
+  index_symbol: string | null;
+  count: number;
+  stance: Stance;
+  score: number;
+  headline: string;
+  performance: Returns;
+  performance_source: string;
+  relative: { ret_1m: number | null; ret_3m: number | null; ret_1y: number | null };
+  breadth: {
+    advances: number;
+    declines: number;
+    above_50dma_pct: number | null;
+    above_200dma_pct: number | null;
+    near_high_pct: number | null;
+    median_from_high_pct: number | null;
+  };
+  valuation: {
+    median_pe: number | null;
+    median_forward_pe: number | null;
+    eps_decline_pct: number | null;
+    median_pb: number | null;
+    median_dividend_yield: number | null;
+    market_median_pe: number | null;
+  };
+  sentiment: { avg_rating: number | null; buy_share_pct: number | null; rated: number };
+  signals: { tone: "pos" | "neg" | "neu"; text: string }[];
+  watch: string[];
+  leaders_1y: BriefStock[];
+  laggards_1y: BriefStock[];
+}
+
+export interface BriefsResponse {
+  region: RegionId;
+  updated_at: string;
+  benchmark: { symbol: string; name: string | null; change_pct: number | null } & Partial<Returns>;
+  briefs: SectorBrief[];
+}
+
+export type PickStatus = "active" | "target_reached" | "stop_hit";
+
+export interface Pick {
+  symbol: string;
+  name: string;
+  sector: string;
+  currency: string | null;
+  entry: number;
+  target: number;
+  stop_loss: number;
+  target_high: number | null;
+  target_low: number | null;
+  upside_pct: number;
+  risk_pct: number;
+  risk_reward: number;
+  rating: number;
+  rating_key: string | null;
+  analysts: number;
+  above_50dma: boolean | null;
+  above_200dma: boolean | null;
+  market_cap: number | null;
+  pe: number | null;
+  reasons: string[];
+  price: number | null;
+  change_pct: number | null;
+  since_entry_pct: number | null;
+  status: PickStatus;
+}
+
+export interface PicksResponse {
+  region: RegionId;
+  generated_at: string;
+  prices_as_of: string;
+  screened: number;
+  passed: number;
+  methodology: Record<"source" | "target" | "stop_loss" | "screen" | "horizon", string>;
+  picks: Pick[];
 }
 
 export interface SearchHit {

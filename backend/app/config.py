@@ -10,12 +10,27 @@ DB_PATH = DATA_DIR / "market.db"
 YF_CACHE_DIR = DATA_DIR / "yf-cache"
 
 # How often market data and news are refreshed.
-REFRESH_INTERVAL_MINUTES = int(os.getenv("REFRESH_INTERVAL_MINUTES", "30"))
+REFRESH_INTERVAL_MINUTES = int(os.getenv("REFRESH_INTERVAL_MINUTES", "1"))
 NEWS_INTERVAL_MINUTES = int(os.getenv("NEWS_INTERVAL_MINUTES", str(REFRESH_INTERVAL_MINUTES)))
+
+# Daily index closes (for 1W/1M/YTD returns and sparklines) change slowly, so they
+# are re-downloaded less often than the live quotes.
+HISTORY_REFRESH_MINUTES = int(os.getenv("HISTORY_REFRESH_MINUTES", "30"))
+# Minimum spacing between index values recorded to the refresh-level history table.
+HISTORY_SAMPLE_MINUTES = int(os.getenv("HISTORY_SAMPLE_MINUTES", "30"))
+
+# Daily stock picks: UTC times (HH:MM) the screen runs for each region —
+# before the NSE open (09:15 IST) and before the US open (09:30 ET).
+PICKS_SCHEDULE_UTC = {
+    "india": os.getenv("PICKS_INDIA_UTC", "02:45"),
+    "world": os.getenv("PICKS_WORLD_UTC", "12:30"),
+}
+PICKS_PER_REGION = int(os.getenv("PICKS_PER_REGION", "12"))
 
 # On-demand caches (charts, sector/company news).
 CHART_CACHE_SECONDS = int(os.getenv("CHART_CACHE_SECONDS", "900"))
-ONDEMAND_NEWS_CACHE_SECONDS = int(os.getenv("ONDEMAND_NEWS_CACHE_SECONDS", "1800"))
+INTRADAY_CHART_CACHE_SECONDS = int(os.getenv("INTRADAY_CHART_CACHE_SECONDS", "60"))
+ONDEMAND_NEWS_CACHE_SECONDS = int(os.getenv("ONDEMAND_NEWS_CACHE_SECONDS", "60"))
 
 # Yahoo quote endpoint batch size.
 QUOTE_BATCH_SIZE = 100

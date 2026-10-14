@@ -10,8 +10,16 @@ import { MoversPanel } from "./components/MoversPanel";
 import { NewsPanel } from "./components/NewsPanel";
 import { DetailDrawer } from "./components/DetailDrawer";
 import { Search } from "./components/Search";
+import { SectorBriefs } from "./components/SectorBriefs";
+import { StockPicks } from "./components/StockPicks";
 
 type Theme = "dark" | "light";
+type View = "dashboard" | "briefs" | "picks";
+const VIEWS: [View, string][] = [
+  ["dashboard", "Dashboard"],
+  ["briefs", "Sector Brief"],
+  ["picks", "Stock Picks"],
+];
 type Palette = "gr" | "br";
 
 function stored<T extends string>(key: string, fallback: T): T {
@@ -34,6 +42,10 @@ export default function App() {
     const fromUrl = new URLSearchParams(window.location.search).get("region");
     return fromUrl === "india" || fromUrl === "world" ? fromUrl : stored<RegionId>("mt.region", "india");
   });
+  const [view, setView] = useState<View>(() => {
+    const v = new URLSearchParams(window.location.search).get("view") ?? stored<View>("mt.view", "dashboard");
+    return VIEWS.some(([id]) => id === v) ? (v as View) : "dashboard";
+  });
   const [theme, setTheme] = useState<Theme>(() => stored<Theme>("mt.theme", "dark"));
   const [palette, setPalette] = useState<Palette>(() => stored<Palette>("mt.palette", "gr"));
   const [sectorByRegion, setSectorByRegion] = useState<Record<string, string | null>>({});
@@ -54,8 +66,10 @@ export default function App() {
   }, [theme, palette]);
   useEffect(() => {
     store("mt.region", region);
+    store("mt.view", view);
     const url = new URL(window.location.href);
     url.searchParams.set("region", region);
+    url.searchParams.set("view", view);
     if (selection) {
       url.searchParams.set("symbol", selection.symbol);
       url.searchParams.set("kind", selection.kind);
@@ -64,14 +78,14 @@ export default function App() {
       url.searchParams.delete("kind");
     }
     window.history.replaceState(null, "", url);
-  }, [region, selection]);
+  }, [region, view, selection]);
 
   // Poll backend status; snapshot timestamps drive data re-fetches.
   useEffect(() => {
     let alive = true;
     const poll = () => api<Status>("/status").then((s) => alive && setStatus(s)).catch(() => {});
     poll();
-    const t = window.setInterval(poll, 20_000);
+    const t = window.setInterval(poll, 10_000);
     const c = window.setInterval(() => setNow(Date.now()), 1000);
     return () => {
       alive = false;
@@ -83,6 +97,7 @@ export default function App() {
   const regionStatus = status?.regions[region];
   const marketVersion = regionStatus?.updated_at ?? 0;
   const newsVersion = regionStatus?.news_updated_at ?? 0;
+  const picksVersion = `${regionStatus?.picks_generated_at}|${marketVersion}`;
 
   const overview = useApi<Overview>(`/markets/${region}/overview`, marketVersion);
   const ov = overview.data?.region === region ? overview.data : null;
@@ -106,6 +121,7 @@ export default function App() {
   const pickSector = (id: string) => setSectorByRegion((m) => ({ ...m, [region]: id }));
 
   const onSearch = (h: SearchHit) => {
+    setView("dashboard");
     setRegion(h.region);
     setSectorByRegion((m) => ({ ...m, [h.region]: h.sector }));
     setSelection({ symbol: h.symbol, name: h.name, kind: "stock", currency: h.currency });
@@ -121,7 +137,7 @@ export default function App() {
   };
 
   const closeDrawer = useCallback(() => setSelection(null), []);
-  const busy = refreshing || !!status?.running.length;
+  const busy = refreshing || !!status?.running.some((j) => j === "markets" || j === "news");
   const tape = ov ? [...ov.indices.slice(0, 12), ...ov.macro] : [];
 
   return (
@@ -137,6 +153,13 @@ export default function App() {
           {(["india", "world"] as RegionId[]).map((r) => (
             <button key={r} role="tab" aria-selected={region === r} onClick={() => setRegion(r)}>
               {r === "india" ? "India" : "World"}
+            </button>
+          ))}
+        </nav>
+        <nav className="view-tabs seg" role="tablist" aria-label="View">
+          {VIEWS.map(([id, label]) => (
+            <button key={id} role="tab" aria-selected={view === id} onClick={() => setView(id)}>
+              {label}
             </button>
           ))}
         </nav>
@@ -176,6 +199,18 @@ export default function App() {
             </>
           )}
         </div>
+      ) : view === "briefs" ? (
+        <SectorBriefs
+          region={region}
+          currency={ov.currency}
+          version={marketVersion}
+          newsVersion={newsVersion}
+          selected={sectorId}
+          onPick={pickSector}
+          onSelect={setSelection}
+        />
+      ) : view === "picks" ? (
+        <StockPicks region={region} version={picksVersion} sectorNames={sectorNames} onSelect={setSelection} />
       ) : (
         <main className="grid">
           <div className="col left">
@@ -197,8 +232,8 @@ export default function App() {
       )}
 
       <footer className="footer muted small">
-        Data: Yahoo Finance (may be delayed) · News: publisher RSS &amp; Google News · Auto-refresh every{" "}
-        {status?.refresh_interval_minutes ?? 30} min · Not investment advice
+        Data: Yahoo Finance (may be delayed) · News: publisher RSS &amp; Google News · Prices &amp; news refresh every{" "}
+        {status?.refresh_interval_minutes ?? 1} min · Picks rebuilt daily · Not investment advice
       </footer>
 
       {selection && <DetailDrawer selection={selection} region={region} indexLookup={indexLookup} onClose={closeDrawer} />}

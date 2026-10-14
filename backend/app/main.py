@@ -109,6 +109,24 @@ def movers(region: RegionId):
     return {"updated_at": snap["updated_at"], **snap["movers"], "breadth": snap["breadth"]}
 
 
+@app.get("/api/markets/{region}/briefs")
+def briefs(region: RegionId):
+    """Per-sector brief: performance, trend/breadth, valuation, signals and drivers to watch."""
+    payload = service.sector_briefs(region)
+    if payload is None:
+        raise HTTPException(503, "Market data is still loading — the first refresh takes a minute or two.")
+    return payload
+
+
+@app.get("/api/markets/{region}/picks")
+def stock_picks(region: RegionId):
+    """Daily analyst-consensus picks with target, computed stop loss and live status."""
+    payload = service.stock_picks(region)
+    if payload is None:
+        raise HTTPException(503, "Today's picks are still being screened — this takes about a minute after startup.")
+    return payload
+
+
 @app.get("/api/stocks/{symbol}")
 def stock(symbol: str):
     found = _find_stock(symbol)
@@ -124,7 +142,8 @@ def stock(symbol: str):
 @app.get("/api/chart/{symbol}")
 def chart(symbol: str, range: Literal[tuple(market.RANGES)] = "1y"):  # type: ignore[valid-type]
     try:
-        return service.cached(f"chart:{symbol}:{range}", config.CHART_CACHE_SECONDS,
+        ttl = config.INTRADAY_CHART_CACHE_SECONDS if range in ("1d", "5d") else config.CHART_CACHE_SECONDS
+        return service.cached(f"chart:{symbol}:{range}", ttl,
                               lambda: market.fetch_chart(symbol, range))
     except Exception as exc:
         raise HTTPException(502, f"Chart unavailable: {exc}")

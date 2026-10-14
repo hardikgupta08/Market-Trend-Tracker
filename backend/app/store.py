@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from . import config
 
 _lock = threading.Lock()
+LOG_KEEP = 2000
 
 
 @contextmanager
@@ -66,6 +67,16 @@ def append_index_history(rows: list[dict], ts: str):
         )
 
 
+def last_history_ts(symbols: list[str]) -> str | None:
+    if not symbols:
+        return None
+    with _conn() as con:
+        row = con.execute(
+            f"SELECT MAX(ts) FROM index_history WHERE symbol IN ({','.join('?' * len(symbols))})", symbols
+        ).fetchone()
+    return row[0] if row else None
+
+
 def index_history(symbol: str, limit: int = 500) -> list[dict]:
     with _conn() as con:
         rows = con.execute(
@@ -85,6 +96,8 @@ def log_finish(log_id: int, finished_at: str, ok: bool, detail: str = ""):
     with _lock, _conn() as con:
         con.execute("UPDATE refresh_log SET finished_at = ?, ok = ?, detail = ? WHERE id = ?",
                     (finished_at, int(ok), detail[:2000], log_id))
+        # Jobs run every minute; keep only the most recent entries.
+        con.execute("DELETE FROM refresh_log WHERE id <= ?", (log_id - LOG_KEEP,))
 
 
 def recent_log(limit: int = 20) -> list[dict]:

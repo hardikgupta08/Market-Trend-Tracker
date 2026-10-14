@@ -13,14 +13,14 @@
   .\run.ps1                 # production-style, http://localhost:8000
   .\run.ps1 -Open           # same, and open the browser
   .\run.ps1 -Dev            # hot-reload development, http://localhost:5173
-  .\run.ps1 -Port 9000 -RefreshMinutes 15
+  .\run.ps1 -Port 9000 -RefreshMinutes 5
 #>
 param(
     [switch]$Dev,
     [switch]$Open,
     [switch]$Setup,           # force reinstall of dependencies
     [int]$Port = 8000,
-    [int]$RefreshMinutes = 30
+    [int]$RefreshMinutes = 1
 )
 
 $ErrorActionPreference = "Stop"

@@ -12,7 +12,13 @@ A full-stack market dashboard with:
 - **News column**: market news (Economic Times, Mint, Business Standard, Moneycontrol, CNBC, MarketWatch,
   Google News), plus per-sector and per-company news.
 - **Detail drawer**: interactive price chart (1D → MAX), key stats and company headlines.
-- **Auto-refresh every 30 minutes** (configurable), persisted to SQLite so restarts serve the last snapshot instantly.
+- **Sector Brief view**: every sector ranked by a composite trend score (Bullish → Bearish), with 1D–1Y
+  performance vs the benchmark, % of stocks above their 50/200-day averages, valuation (P/E, P/B, yield),
+  analyst sentiment, auto-generated signals, a curated "what to watch" outlook and the latest sector headlines.
+- **Stock Picks view**: a daily screen of Buy-rated large caps using the analyst consensus published on Yahoo
+  Finance. Each pick shows entry, consensus mean target, a **computed** stop loss (entry − 3×ATR(14), max 15%),
+  reward/risk and live status (active / target reached / stop hit). Rebuilt daily before each market opens.
+- **Prices and news refresh every minute** (configurable), persisted to SQLite so restarts serve the last snapshot instantly.
 
 ```
 backend/   FastAPI + yfinance + feedparser + APScheduler + SQLite
@@ -36,13 +42,14 @@ Then it serves the API and UI from a single process. Press Ctrl+C to stop.
 | `-Open` | Open the browser once the server is up |
 | `-Dev` | Hot-reload mode: API auto-reload + Vite dev server at http://localhost:5173, same window |
 | `-Port 9000` | Use a different API port (default 8000) |
-| `-RefreshMinutes 15` | Change the data refresh interval (default 30) |
+| `-RefreshMinutes 5` | Change the data refresh interval (default 1) |
 | `-Setup` | Force a reinstall of all dependencies |
 
 `run.bat` passes the same options (e.g. `run.bat -Dev -Open`) and bypasses PowerShell's script execution
 policy, so it also works from cmd or by double-clicking.
 
-The first refresh runs immediately on startup and takes about 15 seconds. Until it finishes, the UI shows a loading state.
+The first refresh runs immediately on startup and takes about 15 seconds; later refreshes take ~5 seconds
+because index history is cached. The first set of stock picks is screened right after (about 15 seconds more). Until it finishes, the UI shows a loading state.
 
 ## Deploying (Render)
 
@@ -55,10 +62,15 @@ visit after a quiet spell takes ~30–60 s to wake up, and the SQLite snapshot r
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `REFRESH_INTERVAL_MINUTES` | `30` | Market-data refresh interval |
+| `REFRESH_INTERVAL_MINUTES` | `1` | Market-data refresh interval |
 | `NEWS_INTERVAL_MINUTES` | same as above | Market-news refresh interval |
-| `CHART_CACHE_SECONDS` | `900` | Cache for on-demand price charts |
-| `ONDEMAND_NEWS_CACHE_SECONDS` | `1800` | Cache for sector / company news |
+| `HISTORY_REFRESH_MINUTES` | `30` | How often daily index/constituent history is re-downloaded |
+| `HISTORY_SAMPLE_MINUTES` | `30` | Spacing of index values recorded to the refresh-level history |
+| `PICKS_INDIA_UTC` / `PICKS_WORLD_UTC` | `02:45` / `12:30` | Daily stock-pick screen time (UTC) per region |
+| `PICKS_PER_REGION` | `12` | Number of stock picks per region |
+| `CHART_CACHE_SECONDS` | `900` | Cache for on-demand price charts (daily+ ranges) |
+| `INTRADAY_CHART_CACHE_SECONDS` | `60` | Cache for 1D / 5D charts |
+| `ONDEMAND_NEWS_CACHE_SECONDS` | `60` | Cache for sector / company news |
 | `DATA_DIR` | `backend/data` | SQLite DB + yfinance cache location |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
 | `VITE_API_BASE` (frontend) | `""` | API origin if the UI is hosted separately |
@@ -77,6 +89,8 @@ Interactive docs: http://localhost:8000/docs
 | `GET /api/markets/{region}/sectors` | Sector summaries |
 | `GET /api/markets/{region}/sectors/{id}` | All companies in a sector, ranked by market cap |
 | `GET /api/markets/{region}/movers` | Gainers, losers, most active, near 52W high |
+| `GET /api/markets/{region}/briefs` | Sector briefs: score, stance, performance, breadth, valuation, signals, outlook |
+| `GET /api/markets/{region}/picks` | Today's analyst-consensus picks with target, stop loss and live status |
 | `GET /api/stocks/{symbol}` | Full quote for one symbol (e.g. `RELIANCE.NS`, `AAPL`) |
 | `GET /api/chart/{symbol}?range=1d\|5d\|1mo\|3mo\|6mo\|ytd\|1y\|5y\|max` | OHLCV series |
 | `GET /api/history/{symbol}` | Index values recorded at each scheduled refresh |
@@ -97,4 +111,7 @@ listed under `missing` in the overview snapshot.
 - Yahoo has **no price history** for several NSE sectoral indices (e.g. NIFTY Auto, FMCG, Metal, Midcap 100).
   Their current value and day change are correct. For those, sparklines and charts use the values this app
   records at every refresh, so they fill in over time, and Yahoo's unreliable 52-week stats are hidden.
+- Stock-pick targets are sell-side consensus 12-month targets as published by Yahoo Finance. Stop losses are a
+  mechanical volatility rule computed by this app, not analyst recommendations. Sector "what to watch" lists are
+  curated in `backend/app/sector_watch.py`; the signals and scores are computed from live data.
 - Not investment advice.

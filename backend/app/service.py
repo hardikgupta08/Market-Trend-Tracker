@@ -1,24 +1,26 @@
-"""In-memory state, refresh jobs and the 30-minute scheduler."""
+"""In-memory state, refresh jobs (markets + news every minute, picks daily) and the scheduler."""
 from __future__ import annotations
 
 import logging
 import threading
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from . import config, market, news, store
+from . import analysis, config, market, news, picks, store
 from .universe import REGIONS
 
 log = logging.getLogger(__name__)
 
 _snapshots: dict[str, dict] = {}
 _news: dict[str, dict] = {}
+_picks: dict[str, dict] = {}
+_picks_attempted: dict[str, float] = {}
 _running: set[str] = set()
 _state_lock = threading.Lock()
-_refresh_locks = {"markets": threading.Lock(), "news": threading.Lock()}
+_refresh_locks = {name: threading.Lock() for name in ("markets", "news", *(f"picks:{rid}" for rid in REGIONS))}
 
 scheduler = BackgroundScheduler(timezone="UTC", job_defaults={"coalesce": True, "max_instances": 1})
 
@@ -36,6 +38,8 @@ def load_persisted():
             _snapshots[rid] = snap
         if items := store.load_snapshot(f"news:{rid}"):
             _news[rid] = items
+        if p := store.load_snapshot(f"picks:{rid}"):
+            _picks[rid] = p
     log.info("loaded persisted snapshots: %s", list(_snapshots))
 
 
@@ -84,10 +88,55 @@ def refresh_markets():
             with _state_lock:
                 _snapshots[rid] = snap
             store.save_snapshot(f"market:{rid}", snap, snap["updated_at"])
-            store.append_index_history(snap["indices"] + snap["macro"], snap["updated_at"])
+            _record_history(snap)
+            if picks_due(rid):
+                threading.Thread(target=refresh_picks, args=(rid,), daemon=True).start()
             parts.append(f"{rid}: {sum(len(v) for v in snap['sector_rows'].values())} stocks")
         return "; ".join(parts)
     return _run_job("markets", work)
+
+
+def _record_history(snap: dict):
+    """Append index values at most every HISTORY_SAMPLE_MINUTES (refreshes run every minute)."""
+    rows = snap["indices"] + snap["macro"]
+    last = store.last_history_ts([r["symbol"] for r in rows])
+    if last and datetime.fromisoformat(snap["updated_at"]) - datetime.fromisoformat(last) < timedelta(
+            minutes=config.HISTORY_SAMPLE_MINUTES):
+        return
+    store.append_index_history(rows, snap["updated_at"])
+
+
+def _last_scheduled_picks(rid: str, now: datetime) -> datetime:
+    hh, mm = map(int, config.PICKS_SCHEDULE_UTC[rid].split(":"))
+    slot = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    return slot if slot <= now else slot - timedelta(days=1)
+
+
+def picks_due(rid: str) -> bool:
+    """True when the region's picks predate its most recent daily slot (also covers
+    first start and a server that slept through the slot). Retries back off 30 min."""
+    if time.time() - _picks_attempted.get(rid, 0) < 1800:
+        return False
+    current = _picks.get(rid)
+    if not current:
+        return True
+    now = datetime.now(timezone.utc)
+    return datetime.fromisoformat(current["generated_at"]) < _last_scheduled_picks(rid, now)
+
+
+def refresh_picks(rid: str):
+    _picks_attempted[rid] = time.time()
+
+    def work():
+        snap = _snapshots.get(rid)
+        if snap is None:
+            raise RuntimeError(f"no market snapshot for {rid} yet")
+        payload = picks.build_picks(REGIONS[rid], snap)
+        with _state_lock:
+            _picks[rid] = payload
+        store.save_snapshot(f"picks:{rid}", payload, payload["generated_at"])
+        return f"{rid}: {len(payload['picks'])} picks from {payload['screened']} candidates"
+    return _run_job(f"picks:{rid}", work)
 
 
 def refresh_news():
@@ -120,12 +169,26 @@ def market_news(region: str) -> dict | None:
     return _news.get(region)
 
 
+def sector_briefs(region: str) -> dict | None:
+    snap = _snapshots.get(region)
+    if snap is None:
+        return None
+    return cached(f"briefs:{region}:{snap['updated_at']}", 3600,
+                  lambda: analysis.build_briefs(REGIONS[region], snap))
+
+
+def stock_picks(region: str) -> dict | None:
+    payload = _picks.get(region)
+    return picks.with_live_prices(payload, _snapshots.get(region)) if payload else None
+
+
 def status() -> dict:
     jobs = {j.id: j.next_run_time.isoformat() if j.next_run_time else None for j in scheduler.get_jobs()}
     return {
         "server_time": _now(),
         "refresh_interval_minutes": config.REFRESH_INTERVAL_MINUTES,
         "news_interval_minutes": config.NEWS_INTERVAL_MINUTES,
+        "picks_schedule_utc": config.PICKS_SCHEDULE_UTC,
         "running": sorted(_running),
         "next_run": jobs,
         "regions": {
@@ -133,6 +196,7 @@ def status() -> dict:
                 "updated_at": (_snapshots.get(rid) or {}).get("updated_at"),
                 "news_updated_at": (_news.get(rid) or {}).get("updated_at"),
                 "market_state": (_snapshots.get(rid) or {}).get("market_state"),
+                "picks_generated_at": (_picks.get(rid) or {}).get("generated_at"),
             }
             for rid in REGIONS
         },

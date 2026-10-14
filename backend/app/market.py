@@ -144,6 +144,46 @@ def download_history(symbols: list[str], period: str = "1y", interval: str = "1d
     return result
 
 
+def download_ohlc(symbols: list[str], period: str = "6mo") -> dict[str, pd.DataFrame]:
+    """Daily High/Low/Close frames per symbol (used for ATR-based stop losses)."""
+    try:
+        df = yf.download(symbols, period=period, interval="1d", group_by="ticker",
+                         progress=False, threads=True, auto_adjust=False)
+    except Exception as exc:
+        log.warning("OHLC download failed: %s", exc)
+        return {}
+    out = {}
+    for sym in symbols:
+        try:
+            frame = df[sym] if isinstance(df.columns, pd.MultiIndex) else df
+            frame = frame[["High", "Low", "Close"]].dropna()
+        except KeyError:
+            continue
+        if len(frame):
+            out[sym] = frame
+    return out
+
+
+_history_cache: dict[str, tuple[float, dict[str, pd.Series], set[str]]] = {}
+PROXY_CONSTITUENTS = 10
+RETURN_KEYS = ("ret_1w", "ret_1m", "ret_3m", "ret_ytd", "ret_1y")
+
+
+def cached_history(key: str, symbols: list[str]) -> dict[str, pd.Series]:
+    """1y daily closes, re-downloaded every HISTORY_REFRESH_MINUTES (or when the symbol set changes)."""
+    hit = _history_cache.get(key)
+    if hit and not set(symbols) <= hit[2]:
+        hit = None
+    if hit and time.time() - hit[0] < config.HISTORY_REFRESH_MINUTES * 60:
+        return hit[1]
+    history = download_history(symbols, period="1y")
+    prev = _history_cache.get(key)
+    if history or not prev:
+        _history_cache[key] = (time.time(), history, set(symbols))
+        return history
+    return prev[1]  # download failed; keep serving the previous copy
+
+
 def _pct(a, b):
     if a is None or b in (None, 0):
         return None
@@ -204,7 +244,7 @@ def build_snapshot(region: Region) -> dict:
     stock_syms = region.stock_symbols
 
     quotes = fetch_quotes(index_syms + stock_syms)
-    history = download_history(index_syms, period="1y")
+    history = cached_history(f"{region.id}:indices", index_syms)
 
     def instrument(sym: str, label: str | None = None) -> dict | None:
         q = quotes.get(sym)
@@ -238,6 +278,8 @@ def build_snapshot(region: Region) -> dict:
         idx_row = instrument(sector.index) if sector.index else None
         sectors_summary.append(_summarise_sector(sector, rows, idx_row))
 
+    _attach_proxy_returns(region, sectors_summary, sector_rows)
+
     all_stocks = [r for rows in sector_rows.values() for r in rows if r.get("change_pct") is not None]
     def mover(r):
         return {k: r.get(k) for k in ("symbol", "name", "price", "change_pct", "volume", "market_cap", "sector")}
@@ -270,6 +312,28 @@ def build_snapshot(region: Region) -> dict:
         "breadth": breadth,
         "missing": [s for s in stock_syms if s not in quotes],
     }
+
+
+def _attach_proxy_returns(region: Region, summaries: list[dict], sector_rows: dict[str, list[dict]]):
+    """For sectors whose index has no daily history on Yahoo, estimate 1W–1Y returns from
+    the largest constituents (market-cap weighted) so the sector brief has trailing performance."""
+    need = [s for s in summaries if not (s["index"] or {}).get("ret_1m")]
+    top = {s["id"]: [r for r in sector_rows[s["id"]] if r.get("price")][:PROXY_CONSTITUENTS] for s in need}
+    symbols = sorted({r["symbol"] for rows in top.values() for r in rows})
+    if not symbols:
+        return
+    history = cached_history(f"{region.id}:proxy", symbols)
+    for s in need:
+        stats = [(r.get("market_cap") or 0, history_stats(history[r["symbol"]], r["price"]))
+                 for r in top[s["id"]] if r["symbol"] in history and len(history[r["symbol"]]) >= 5]
+        if not stats:
+            continue
+        out = {}
+        for k in RETURN_KEYS:
+            pairs = [(w, st[k]) for w, st in stats if st[k] is not None]
+            total = sum(w for w, _ in pairs)
+            out[k] = sum(w * v for w, v in pairs) / total if total else None
+        s["proxy_returns"] = {**out, "constituents": len(stats)}
 
 
 RANGES = {
