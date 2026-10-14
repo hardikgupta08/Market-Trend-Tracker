@@ -1,0 +1,10 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: industry-index-tracker
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      - key: REFRESH_INTERVAL_MINUTES
+        value: "30"

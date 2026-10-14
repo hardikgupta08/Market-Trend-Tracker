@@ -1,0 +1,221 @@
+"""Indian market universe: headline indices, macro instruments and sector constituents.
+
+Stock symbols are NSE tickers (".NS" is appended automatically). Company names,
+market caps and fundamentals are pulled live from Yahoo Finance, so only symbols
+are listed here. Symbols Yahoo does not recognise are skipped at refresh time.
+"""
+
+SUFFIX = ".NS"
+
+INDICES = [
+    ("^NSEI", "NIFTY 50"),
+    ("^BSESN", "SENSEX"),
+    ("^NSEBANK", "NIFTY Bank"),
+    ("NIFTY_FIN_SERVICE.NS", "NIFTY Financial Services"),
+    ("^CNXIT", "NIFTY IT"),
+    ("^NSMIDCP", "NIFTY Next 50"),
+    ("NIFTY_MIDCAP_100.NS", "NIFTY Midcap 100"),
+    ("^CNXSC", "NIFTY Smallcap 100"),
+    ("^CRSLDX", "NIFTY 500"),
+    ("^CNX100", "NIFTY 100"),
+    ("^INDIAVIX", "India VIX"),
+    ("^CNXAUTO", "NIFTY Auto"),
+    ("^CNXPHARMA", "NIFTY Pharma"),
+    ("^CNXFMCG", "NIFTY FMCG"),
+    ("^CNXMETAL", "NIFTY Metal"),
+    ("^CNXENERGY", "NIFTY Energy"),
+    ("^CNXREALTY", "NIFTY Realty"),
+    ("^CNXINFRA", "NIFTY Infrastructure"),
+    ("^CNXMEDIA", "NIFTY Media"),
+    ("^CNXPSUBANK", "NIFTY PSU Bank"),
+    ("^CNXPSE", "NIFTY PSE"),
+    ("^CNXCONSUM", "NIFTY India Consumption"),
+]
+
+MACRO = [
+    ("INR=X", "USD/INR"),
+    ("EURINR=X", "EUR/INR"),
+    ("GC=F", "Gold (USD/oz)"),
+    ("SI=F", "Silver (USD/oz)"),
+    ("BZ=F", "Brent Crude (USD)"),
+    ("NG=F", "Natural Gas (USD)"),
+    ("BTC-INR", "Bitcoin (INR)"),
+]
+
+NEWS_FEEDS = [
+    ("Economic Times", "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms"),
+    ("Mint", "https://www.livemint.com/rss/markets"),
+    ("Business Standard", "https://www.business-standard.com/rss/markets-106.rss"),
+    ("Moneycontrol", "https://www.moneycontrol.com/rss/marketreports.xml"),
+    ("Google News", "https://news.google.com/rss/search?q=sensex+OR+nifty+stock+market&hl=en-IN&gl=IN&ceid=IN:en"),
+]
+
+NEWS_LOCALE = {"hl": "en-IN", "gl": "IN", "ceid": "IN:en"}
+
+SECTORS = [
+    {
+        "id": "banking",
+        "name": "Banking",
+        "index": "^NSEBANK",
+        "news_query": "Indian bank stocks Nifty Bank",
+        "symbols": """HDFCBANK ICICIBANK SBIN KOTAKBANK AXISBANK INDUSINDBK BANKBARODA PNB CANBK
+            UNIONBANK IDFCFIRSTB FEDERALBNK AUBANK BANDHANBNK YESBANK INDIANB BANKINDIA IOB
+            UCOBANK CENTRALBK MAHABANK PSB RBLBANK CUB KARURVYSYA J&KBANK SOUTHBANK TMB
+            KTKBANK DCBBANK CSBBANK EQUITASBNK UJJIVANSFB SURYODAY ESAFSFB UTKARSHBNK DHANBANK
+            IDBI CAPITALSFB JSFB""",
+    },
+    {
+        "id": "finserv",
+        "name": "Financial Services",
+        "index": "NIFTY_FIN_SERVICE.NS",
+        "news_query": "India NBFC insurance AMC stocks",
+        "symbols": """BAJFINANCE BAJAJFINSV JIOFIN SBILIFE HDFCLIFE ICICIPRULI ICICIGI LICI SBICARD
+            CHOLAFIN SHRIRAMFIN MUTHOOTFIN MANAPPURAM PFC RECLTD IRFC LICHSGFIN M&MFIN
+            POONAWALLA ABCAPITAL LTF HDFCAMC NAM-INDIA UTIAMC ABSLAMC CDSL BSE MCX CAMS
+            KFINTECH ANGELONE MOTILALOFS IIFL 360ONE NUVAMA BAJAJHFL PNBHOUSING AAVAS HOMEFIRST
+            APTUS CANFINHOME AADHARHFC CREDITACC FIVESTAR SUNDARMFIN HUDCO IREDA IFCI STARHEALTH
+            NIACL GICRE GODIGIT POLICYBZR PAYTM SBFC TATAINVEST BAJAJHLDNG CRISIL ICRA HDBFS""",
+    },
+    {
+        "id": "it",
+        "name": "Information Technology",
+        "index": "^CNXIT",
+        "news_query": "Indian IT stocks Nifty IT",
+        "symbols": """TCS INFY HCLTECH WIPRO TECHM  PERSISTENT COFORGE MPHASIS OFSS LTTS KPITTECH
+            TATAELXSI TATATECH CYIENT SONATSOFTW BSOFT ZENSARTECH MASTEK HAPPSTMNDS INTELLECT
+            NEWGEN TANLA ROUTE LATENTVIEW MAPMYINDIA SASKEN ECLERX FSL HEXT NIITLTD RATEGAIN
+            AFFLE QUICKHEAL NUCLEUS SUBEXLTD MOSCHIP DATAMATICS INFOBEAN KELLTONTEC AURIONPRO
+            RSYSTEMS SAKSOFT  GENESYS IKS SAGILITY NETWEB CMSINFO""",
+    },
+    {
+        "id": "pharma",
+        "name": "Pharma & Healthcare",
+        "index": "^CNXPHARMA",
+        "news_query": "Indian pharma healthcare stocks",
+        "symbols": """SUNPHARMA DIVISLAB CIPLA DRREDDY TORNTPHARM MANKIND ZYDUSLIFE LUPIN AUROPHARMA
+            ALKEM ABBOTINDIA GLENMARK IPCALAB BIOCON LAURUSLABS GLAXO PFIZER SANOFI AJANTPHARM
+             GRANULES JBCHEPHARM ERIS PPLPHARMA WOCKPHARMA ASTRAZEN NEULANDLAB
+            SYNGENE APLLTD CAPLIPOINT MARKSANS COHANCE CONCORDBIO GLAND STAR INDOCO FDC JUBLPHARMA
+            APOLLOHOSP MAXHEALTH FORTIS NH MEDANTA KIMS ASTERDM RAINBOW METROPOLIS LALPATHLAB
+            VIJAYA THYROCARE POLYMED HCG YATHARTH JLHL""",
+    },
+    {
+        "id": "auto",
+        "name": "Automobile & Components",
+        "index": "^CNXAUTO",
+        "news_query": "Indian auto stocks Nifty Auto",
+        "symbols": """MARUTI M&M TMPV TMCV  BAJAJ-AUTO EICHERMOT HEROMOTOCO TVSMOTOR ASHOKLEY
+            ESCORTS FORCEMOT OLAELEC ATHERENERG HYUNDAI BOSCHLTD MOTHERSON SONACOMS UNOMINDA
+            BHARATFORG EXIDEIND ARE&M MRF APOLLOTYRE BALKRISIND CEATLTD JKTYRE TIINDIA
+            SCHAEFFLER ENDURANCE SUNDRMFAST ZFCVINDIA GABRIEL CRAFTSMAN MINDACORP JBMA VARROC
+            SUPRAJIT LUMAXTECH FIEMIND SANSERA ASKAUTOLTD SUBROS SHRIPISTON BELRISE HAPPYFORGE
+            RKFORGE MSUMI""",
+    },
+    {
+        "id": "fmcg",
+        "name": "FMCG",
+        "index": "^CNXFMCG",
+        "news_query": "Indian FMCG stocks Nifty FMCG",
+        "symbols": """HINDUNILVR ITC NESTLEIND BRITANNIA TATACONSUM GODREJCP DABUR MARICO COLPAL VBL
+            UBL UNITDSPR RADICO PGHH GILLETTE EMAMILTD JYOTHYLAB BIKAJI HONASA PATANJALI AWL
+            BAJAJCON ZYDUSWELL GODFRYPHLP VSTIND BALRAMCHIN TRIVENI EIDPARRY RENUKA KRBL LTFOODS
+            HATSUN HERITGFOOD DODLA PARAGMILK AVANTIFEED CCL SULA GLOBUSSPR TI ABDL BECTORFOOD
+            GOPAL ADFFOODS TASTYBITE MANORAMA  """,
+    },
+    {
+        "id": "metals",
+        "name": "Metals & Mining",
+        "index": "^CNXMETAL",
+        "news_query": "Indian metal stocks Nifty Metal",
+        "symbols": """TATASTEEL JSWSTEEL HINDALCO VEDL COALINDIA NMDC SAIL JINDALSTEL HINDZINC NATIONALUM
+            APLAPOLLO JSL RATNAMANI WELCORP HINDCOPPER MOIL GMDCLTD LLOYDSME SHYAMMETL JAIBALAJI
+            GPIL SARDAEN JINDALSAW KIOCL SANDUMA MAHSEAMLES NSLNISP ELECTCAST JTLIND GRAVITA
+            POCL MIDHANI USHAMART PRAKASH KSL SURYAROSNI GOODLUCK MANINDS SUNFLAG MUKANDLTD
+            JAYNECOIND IMFA MANAKSIA HSCL""",
+    },
+    {
+        "id": "energy",
+        "name": "Energy — Oil, Gas & Power",
+        "index": "^CNXENERGY",
+        "news_query": "India oil gas power stocks",
+        "symbols": """RELIANCE ONGC IOC BPCL HINDPETRO GAIL OIL PETRONET IGL MGL  GSPL ATGL
+            CASTROLIND GULFOILLUB MRPL CHENNPETRO  AEGISVOPAK DEEPINDS HINDOILEXP
+            JINDRILL CONFIPET NTPC POWERGRID TATAPOWER ADANIPOWER ADANIGREEN ADANIENSOL JSWENERGY
+            NHPC SJVN TORNTPOWER CESC NLCINDIA NTPCGREEN ACMESOLAR WAAREEENER PREMIERENE INOXWIND
+            SUZLON KPIGREEN RPOWER JPPOWER IEX PTC GIPCL WEBELSOLAR""",
+    },
+    {
+        "id": "capgoods",
+        "name": "Capital Goods & Defence",
+        "index": None,
+        "news_query": "India capital goods defence stocks",
+        "symbols": """LT SIEMENS ENRIN ABB BEL HAL BHEL CGPOWER CUMMINSIND THERMAX BDL MAZDOCK COCHINSHIP
+            GRSE BEML SOLARINDS DATAPATTNS ASTRAMICRO PARAS ZENTEC MTARTECH HBLENGINE AIAENG
+            ELGIEQUIP KIRLOSENG KIRLOSBROS GRINDWELL CARBORUNIV TRITURBINE SKFINDIA TIMKEN KEI
+            POLYCAB APARINDS POWERINDIA GVT&D TDPOWERSYS VOLTAMP TARIL SCHNEIDER PRAJIND ISGEC
+            INGERRAND KSB ELECON LMW TEXRAIL JYOTICNC PTCIL AZAD UNIMECH GMMPFAUDLR ACE""",
+    },
+    {
+        "id": "infra",
+        "name": "Infrastructure & Logistics",
+        "index": "^CNXINFRA",
+        "news_query": "India infrastructure logistics stocks",
+        "symbols": """ADANIENT ADANIPORTS GMRAIRPORT INDIGO IRB NCC KNRCON PNCINFRA HGINFRA GPPL RVNL
+            IRCON NBCC ENGINERSIN RITES IRCTC CONCOR KPIL KEC JKIL ASHOKA PSPPROJECT AHLUCONT
+            CAPACITE GRINFRA DBL WELENT TECHNOE HCC  MANINFRA SKIPPER PATELENG DELHIVERY
+            BLUEDART TCI ALLCARGO MAHLOG GATEWAY VRLLOG JSWINFRA SCI GESHIP TCIEXP """,
+    },
+    {
+        "id": "cement",
+        "name": "Cement & Building Materials",
+        "index": None,
+        "news_query": "India cement building materials stocks",
+        "symbols": """ULTRACEMCO AMBUJACEM SHREECEM ACC DALBHARAT JKCEMENT RAMCOCEM NUVOCO INDIACEM
+            JKLAKSHMI HEIDELBERG BIRLACORPN STARCEMENT ORIENTCEM SAGCEM KCP MANGLMCEM PRSMJOHNSN
+            DECCANCE NCLIND ASIANPAINT BERGEPAINT KANSAINER INDIGOPNTS  ASTRAL SUPREMEIND
+            FINPIPE PRINCEPIPE APOLLOPIPE KAJARIACER CERA SOMANYCERA ORIENTBELL GREENPLY
+            CENTURYPLY GREENPANEL STYLAMIND AGI POKARNA ASAHIINDIA BORORENEW HINDWAREAP
+            EVERESTIND VISAKAIND RAMCOIND SANGHIIND HIL""",
+    },
+    {
+        "id": "chemicals",
+        "name": "Chemicals & Fertilisers",
+        "index": None,
+        "news_query": "India chemical fertiliser stocks",
+        "symbols": """PIDILITIND SRF PIIND UPL DEEPAKNTR AARTIIND NAVINFLUOR ATUL TATACHEM FLUOROCHEM
+            CLEAN VINATIORGA SUMICHEM BAYERCROP DHANUKA RALLIS CHAMBLFERT COROMANDEL FACT RCF
+            GSFC GNFC DEEPAKFERT PARADEEP NFL BASF LINDEINDIA ALKYLAMINE BALAMINES FINEORG
+            GALAXYSURF ROSSARI NOCIL LXCHEM ANURAS CHEMPLASTS JUBLINGREA NEOGEN PCBL GHCL
+            DCMSHRIRAM SUDARSCHEM AETHER IGPL INSECTICID EPL KSCL""",
+    },
+    {
+        "id": "realty",
+        "name": "Realty & Hospitality",
+        "index": "^CNXREALTY",
+        "news_query": "India real estate hotel stocks",
+        "symbols": """DLF GODREJPROP OBEROIRLTY PRESTIGE LODHA PHOENIXLTD BRIGADE SOBHA SUNTECK MAHLIFE
+            KOLTEPATIL ANANTRAJ SIGNATURE PURVA ASHIANA ARVSMART  AJMERA NESCO OMAXE
+            PARSVNATH MARATHON ELDEHSG HEMIPROP SURAJEST ARIHANTSUP RAYMONDREL EMBASSY MINDSPACE
+            BIRET NXST INDHOTEL EIHOTEL CHALET LEMONTREE JUNIPER SAMHI VENTIVE ITCHOTELS MHRIL""",
+    },
+    {
+        "id": "consumer",
+        "name": "Consumer Durables, Retail & Internet",
+        "index": "^CNXCONSUM",
+        "news_query": "India consumer durables retail stocks",
+        "symbols": """TITAN HAVELLS VOLTAS BLUESTARCO CROMPTON WHIRLPOOL DIXON AMBER KAYNES SYRMA PGEL
+            BAJAJELEC VGUARD TTKPRESTIG SYMPHONY VIPIND SAFARI RELAXO BATAINDIA METROBRAND CAMPUS
+            KALYANKJIL SENCO PNGJL THANGAMAYL DMART TRENT ABFRL SHOPERSTOP VMART MANYAVAR PAGEIND
+            ARVIND KPRMILL WELSPUNLIV TRIDENT NYKAA ETERNAL SWIGGY INDIAMART JUSTDIAL NAUKRI
+            JUBLFOOD DEVYANI WESTLIFE SAPPHIRE LENSKART""",
+    },
+    {
+        "id": "telecom",
+        "name": "Telecom & Media",
+        "index": "^CNXMEDIA",
+        "news_query": "India telecom media stocks",
+        "symbols": """BHARTIARTL INDUSTOWER IDEA TATACOMM BHARTIHEXA HFCL TEJASNET STLTECH ITI RAILTEL
+            SUNTV ZEEL PVRINOX NETWORK18 NAZARA SAREGAMA TIPSMUSIC DBCORP JAGRAN HATHWAY DEN
+            NDTV BALAJITELE PFOCUS GTPL MTNL OPTIEMUS AVANTEL VINDHYATEL ONMOBILE SHEMAROO MPSLTD""",
+    },
+]
