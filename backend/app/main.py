@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
@@ -29,6 +29,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Market Terminal API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def activity_and_caching(request: Request, call_next):
+    path = request.url.path
+    # Health checks (host probes, keep-alive pings) don't count as someone using the site.
+    if path.startswith("/api/") and path != "/api/health":
+        service.touch()
+    response = await call_next(request)
+    if path.startswith("/assets/"):
+        # Vite fingerprints asset filenames, so browsers can keep them forever.
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif not path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 def _snapshot_or_503(region: str) -> dict:

@@ -18,7 +18,8 @@ A full-stack market dashboard with:
 - **Stock Picks view**: a daily screen of Buy-rated large caps using the analyst consensus published on Yahoo
   Finance. Each pick shows entry, consensus mean target, a **computed** stop loss (entry − 3×ATR(14), max 15%),
   reward/risk and live status (active / target reached / stop hit). Rebuilt daily before each market opens.
-- **Prices and news refresh every minute** (configurable), persisted to SQLite so restarts serve the last snapshot instantly.
+- **Prices refresh every minute while a market is open and someone is viewing** (every 15 min otherwise), news every
+  5 min (all configurable), persisted to SQLite so restarts serve the last snapshot instantly.
 
 ```
 backend/   FastAPI + yfinance + feedparser + APScheduler + SQLite
@@ -55,15 +56,25 @@ because index history is cached. The first set of stock picks is screened right 
 
 The repo includes a `Dockerfile` (builds the UI, serves API + UI from one process on `$PORT`) and a
 `render.yaml` blueprint. On [Render](https://render.com): **New → Blueprint**, pick this repo, and apply.
-Pushes to `main` redeploy automatically. On the free plan the service sleeps when idle, so the first
-visit after a quiet spell takes ~30–60 s to wake up, and the SQLite snapshot resets on each redeploy.
+Pushes to `main` redeploy automatically.
+
+On the free plan Render puts a service to sleep after 15 minutes without traffic. To prevent that, the app
+pings its own public `/api/health` every 10 minutes (Render sets `RENDER_EXTERNAL_URL`
+automatically, so this needs no setup). One always-on service fits inside the free plan's 750
+instance-hours a month. Keep-alive pings don't count as visitors, so while nobody has the page open
+the server refreshes only every 15 minutes and stays light. Optionally, add a free uptime monitor
+(e.g. [UptimeRobot](https://uptimerobot.com)) on the same URL as a backup and for downtime alerts.
+
+For more CPU (and no reliance on keep-alive pings), switch `plan: free` to `plan: starter` in `render.yaml`.
 
 ## Configuration (environment variables)
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `REFRESH_INTERVAL_MINUTES` | `1` | Market-data refresh interval |
-| `NEWS_INTERVAL_MINUTES` | same as above | Market-news refresh interval |
+| `NEWS_INTERVAL_MINUTES` | `5` | Market-news refresh interval |
+| `SLOW_REFRESH_MINUTES` | `15` | Refresh interval when a market is closed or nobody is viewing |
+| `IDLE_MINUTES` | `10` | Minutes without a visitor (health checks excluded) before refreshes slow down |
 | `HISTORY_REFRESH_MINUTES` | `30` | How often daily index/constituent history is re-downloaded |
 | `HISTORY_SAMPLE_MINUTES` | `30` | Spacing of index values recorded to the refresh-level history |
 | `PICKS_INDIA_UTC` / `PICKS_WORLD_UTC` | `02:45` / `12:30` | Daily stock-pick screen time (UTC) per region |
@@ -71,6 +82,8 @@ visit after a quiet spell takes ~30–60 s to wake up, and the SQLite snapshot r
 | `CHART_CACHE_SECONDS` | `900` | Cache for on-demand price charts (daily+ ranges) |
 | `INTRADAY_CHART_CACHE_SECONDS` | `60` | Cache for 1D / 5D charts |
 | `ONDEMAND_NEWS_CACHE_SECONDS` | `60` | Cache for sector / company news |
+| `KEEP_ALIVE_URL` | `$RENDER_EXTERNAL_URL` | Public URL to ping so the host doesn't sleep (unset = disabled) |
+| `KEEP_ALIVE_MINUTES` | `10` | Keep-alive ping interval |
 | `DATA_DIR` | `backend/data` | SQLite DB + yfinance cache location |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
 | `VITE_API_BASE` (frontend) | `""` | API origin if the UI is hosted separately |

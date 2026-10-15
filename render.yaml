@@ -4,7 +4,7 @@ services:
     name: industry-index-tracker
     runtime: docker
     plan: free
-    healthCheckPath: /api/status
+    healthCheckPath: /api/health
     envVars:
       - key: REFRESH_INTERVAL_MINUTES
         value: "1"

@@ -11,7 +11,23 @@ YF_CACHE_DIR = DATA_DIR / "yf-cache"
 
 # How often market data and news are refreshed.
 REFRESH_INTERVAL_MINUTES = int(os.getenv("REFRESH_INTERVAL_MINUTES", "1"))
-NEWS_INTERVAL_MINUTES = int(os.getenv("NEWS_INTERVAL_MINUTES", str(REFRESH_INTERVAL_MINUTES)))
+NEWS_INTERVAL_MINUTES = int(os.getenv("NEWS_INTERVAL_MINUTES", "5"))
+
+# Outside a region's trading session, or when nobody has used the site for IDLE_MINUTES,
+# data is refreshed only every SLOW_REFRESH_MINUTES. This keeps a small (shared-CPU) host
+# free to answer requests instead of re-downloading ~1,300 unchanged quotes every minute.
+SLOW_REFRESH_MINUTES = int(os.getenv("SLOW_REFRESH_MINUTES", "15"))
+IDLE_MINUTES = int(os.getenv("IDLE_MINUTES", "10"))
+# Keep-alive: ping our own public URL so free hosts that sleep after ~15 idle minutes
+# (Render) stay awake. Render sets RENDER_EXTERNAL_URL automatically; unset locally = disabled.
+KEEP_ALIVE_URL = os.getenv("KEEP_ALIVE_URL") or os.getenv("RENDER_EXTERNAL_URL")
+KEEP_ALIVE_MINUTES = int(os.getenv("KEEP_ALIVE_MINUTES", "10"))
+
+# Local trading window per region (exchange time zone, weekdays), padded for pre/post-market.
+SESSIONS = {
+    "india": ("Asia/Kolkata", "09:00", "15:45"),
+    "world": ("America/New_York", "04:00", "20:00"),
+}
 
 # Daily index closes (for 1W/1M/YTD returns and sparklines) change slowly, so they
 # are re-downloaded less often than the live quotes.

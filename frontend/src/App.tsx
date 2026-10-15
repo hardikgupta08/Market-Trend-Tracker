@@ -232,8 +232,9 @@ export default function App() {
       )}
 
       <footer className="footer muted small">
-        Data: Yahoo Finance (may be delayed) · News: publisher RSS &amp; Google News · Prices &amp; news refresh every{" "}
-        {status?.refresh_interval_minutes ?? 1} min · Picks rebuilt daily · Not investment advice
+        Data: Yahoo Finance (may be delayed) · News: publisher RSS &amp; Google News · Prices refresh every{" "}
+        {status?.refresh_interval_minutes ?? 1} min while markets are open (every {status?.slow_refresh_minutes ?? 15} min
+        otherwise) · News every {status?.news_interval_minutes ?? 5} min · Picks rebuilt daily · Not investment advice
       </footer>
 
       {selection && <DetailDrawer selection={selection} region={region} indexLookup={indexLookup} onClose={closeDrawer} />}

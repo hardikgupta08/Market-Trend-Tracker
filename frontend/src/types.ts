@@ -135,6 +135,7 @@ export interface Status {
   server_time: string;
   refresh_interval_minutes: number;
   news_interval_minutes: number;
+  slow_refresh_minutes: number;
   picks_schedule_utc: Record<RegionId, string>;
   running: string[];
   next_run: Record<string, string | null>;
@@ -144,6 +145,7 @@ export interface Status {
       updated_at: string | null;
       news_updated_at: string | null;
       market_state: string | null;
+      in_session: boolean;
       picks_generated_at: string | null;
     }
   >;
