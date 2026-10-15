@@ -67,6 +67,43 @@ the server refreshes only every 15 minutes and stays light. Optionally, add a fr
 
 For more CPU (and no reliance on keep-alive pings), switch `plan: free` to `plan: starter` in `render.yaml`.
 
+## Deploying (Oracle Cloud Always Free VM)
+
+An always-on server with a persistent disk: no sleeping, and restarts serve the last snapshot instantly.
+`docker-compose.yml` runs the app behind [Caddy](https://caddyserver.com), which handles HTTPS certificates automatically.
+
+1. **Create the VM.** Sign up at [cloud.oracle.com](https://cloud.oracle.com), choosing a home region near your
+   users (e.g. India West (Mumbai) or India South (Hyderabad)). The home region can't be changed later. Then go to
+   **Compute → Instances → Create instance**:
+   - Image: **Canonical Ubuntu 24.04**
+   - Shape: **Ampere → VM.Standard.A1.Flex**, 2 OCPU / 12 GB (within the Always Free limit)
+   - Networking: create a new VCN with a **public subnet** and **assign a public IPv4 address**
+   - SSH keys: let it generate a key pair and **download the private key**
+
+   If you see "Out of capacity", try another availability domain or retry later.
+2. **Open ports 80 and 443.** On the instance page, open the subnet, then its **Security List**, then **Add Ingress Rules**:
+   source `0.0.0.0/0`, IP protocol TCP, destination port `80`. Add a second rule for port `443`.
+3. **SSH in** (PowerShell on Windows has `ssh` built in):
+   ```powershell
+   ssh -i path\to\private.key ubuntu@<public-ip>
+   ```
+4. **Run the setup script** on the VM:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/hardikgupta08/industry-index-tracker/main/deploy/oracle-setup.sh | bash
+   ```
+   It installs Docker, opens the VM firewall, clones this repo and starts everything. The site comes up at
+   `https://<public-ip-with-dashes>.sslip.io`, which works without buying a domain. To use your own domain, point
+   an A record at the IP and run the script with `DOMAIN=markets.example.com` (or edit `.env`, then run
+   `sudo docker compose up -d`).
+5. **Deploy updates:** after pushing to GitHub, rerun the same script on the VM. It pulls and rebuilds.
+
+Useful commands (run in `~/industry-index-tracker`): `sudo docker compose logs -f app` (live logs),
+`sudo docker compose restart app`, `sudo docker compose ps`.
+
+Oracle may reclaim Always Free VMs that sit nearly idle for 7 days, and this app uses little CPU. To prevent
+that, upgrade the account to **Pay As You Go** (Billing → Upgrade). Always Free resources stay free. Add a
+budget alert in Billing for peace of mind. The Render keep-alive pings are off automatically here.
+
 ## Configuration (environment variables)
 
 | Variable | Default | Meaning |

@@ -1,0 +1,37 @@
+# Self-hosted deployment (e.g. an Oracle Cloud Always Free VM): the app plus Caddy for automatic HTTPS.
+#   SITE_ADDRESS=<your-domain> docker compose up -d --build     (or put SITE_ADDRESS in a .env file)
+# See "Deploying (Oracle Cloud VM)" in README.md, or run deploy/oracle-setup.sh on the VM.
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATA_DIR: /data
+      REFRESH_INTERVAL_MINUTES: "1"
+    volumes:
+      - app-data:/data # SQLite snapshot survives restarts and redeploys
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS (your domain) in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # TLS certificates
+      - caddy-config:/config
+
+volumes:
+  app-data:
+  caddy-data:
+  caddy-config:
