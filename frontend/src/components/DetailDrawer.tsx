@@ -5,6 +5,7 @@ import { dir, marketCap, pct, price, ratio, rating, ticker, volume, marketState 
 import { Change } from "./Change";
 import { PriceChart } from "./PriceChart";
 import { NewsList } from "./NewsPanel";
+import { WatchStar } from "./WatchStar";
 
 const RANGES = ["1d", "5d", "1mo", "3mo", "6mo", "ytd", "1y", "5y", "max"] as const;
 type Range = (typeof RANGES)[number];
@@ -22,20 +23,22 @@ export function DetailDrawer({
   selection,
   region,
   indexLookup,
+  version,
   onClose,
 }: {
   selection: Selection;
   region: RegionId;
   indexLookup: Record<string, Instrument>;
+  version: unknown;
   onClose: () => void;
 }) {
   const [range, setRange] = useState<Range>("1y");
   const isStock = selection.kind === "stock";
   const sym = enc(selection.symbol);
 
-  const stock = useApi<Quote>(isStock ? `/stocks/${sym}` : null);
-  const chart = useApi<ChartResponse>(`/chart/${sym}?range=${range}`);
-  const news = useApi<NewsResponse>(isStock ? `/news?region=${region}&symbol=${sym}&limit=15` : null);
+  const stock = useApi<Quote>(isStock ? `/stocks/${sym}` : null, version);
+  const chart = useApi<ChartResponse>(`/chart/${sym}?range=${range}`, version);
+  const news = useApi<NewsResponse>(isStock ? `/news?region=${selection.region ?? region}&symbol=${sym}&limit=15` : null);
   // Some NSE indices have no history on Yahoo; fall back to values recorded at each refresh.
   const noHistory = !!chart.data && chart.data.points.length < 2;
   const recorded = useApi<{ points: { t: string; price: number | null }[] }>(noHistory ? `/history/${sym}?limit=2000` : null);
@@ -68,7 +71,10 @@ export function DetailDrawer({
             </div>
             <h2>{q?.name ?? selection.name ?? selection.symbol}</h2>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">✕</button>
+          <div className="drawer-actions">
+            {isStock && <WatchStar symbol={selection.symbol} labelled />}
+            <button className="icon-btn" onClick={onClose} aria-label="Close">✕</button>
+          </div>
         </header>
 
         <div className="drawer-price">

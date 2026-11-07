@@ -18,6 +18,8 @@ A full-stack market dashboard with:
 - **Stock Picks view**: a daily screen of Buy-rated large caps using the analyst consensus published on Yahoo
   Finance. Each pick shows entry, consensus mean target, a **computed** stop loss (entry − 3×ATR(14), max 15%),
   reward/risk and live status (active / target reached / stop hit). Rebuilt daily before each market opens.
+- **Watchlist view**: star any stock (search results, sector table, movers, picks or detail drawer) to follow it
+  with live prices, grouped by market. Saved in the browser's localStorage, so it is per browser and needs no login.
 - **Prices refresh every minute while a market is open and someone is viewing** (every 15 min otherwise), news every
   5 min (all configurable), persisted to SQLite so restarts serve the last snapshot instantly.
 
@@ -142,6 +144,7 @@ Interactive docs: http://localhost:8000/docs
 | `GET /api/markets/{region}/briefs` | Sector briefs: score, stance, performance, breadth, valuation, signals, outlook |
 | `GET /api/markets/{region}/picks` | Today's analyst-consensus picks with target, stop loss and live status |
 | `GET /api/stocks/{symbol}` | Full quote for one symbol (e.g. `RELIANCE.NS`, `AAPL`) |
+| `GET /api/quotes?symbols=RELIANCE.NS,AAPL` | Quotes for up to 200 symbols across regions (used by the watchlist) |
 | `GET /api/chart/{symbol}?range=1d\|5d\|1mo\|3mo\|6mo\|ytd\|1y\|5y\|max` | OHLCV series |
 | `GET /api/history/{symbol}` | Index values recorded at each scheduled refresh |
 | `GET /api/news?region=&sector=&symbol=&limit=` | Market, sector or company news |

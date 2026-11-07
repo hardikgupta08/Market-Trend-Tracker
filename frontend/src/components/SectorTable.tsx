@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import type { Quote, SectorDetail, Selection } from "../types";
 import { dir, marketCap, pct, price, ratio, rating, ticker, volume } from "../format";
 import { Change } from "./Change";
+import { WatchStar } from "./WatchStar";
 
-type Key = "rank" | "name" | "price" | "change_pct" | "market_cap" | "pe" | "pb" | "dividend_yield" |
+export type Key = "rank" | "name" | "price" | "change_pct" | "market_cap" | "pe" | "pb" | "dividend_yield" |
   "change_52w_pct" | "from_high_pct" | "volume" | "analyst_rating";
 
 const COLS: { key: Key; label: string; num?: boolean; title?: string }[] = [
@@ -21,13 +22,13 @@ const COLS: { key: Key; label: string; num?: boolean; title?: string }[] = [
   { key: "analyst_rating", label: "Analysts", title: "Yahoo consensus: 1 = Strong Buy … 5 = Sell" },
 ];
 
-function sortValue(q: Quote, k: Key): number | string | null {
+export function sortValue(q: Quote, k: Key): number | string | null {
   if (k === "name") return q.name.toLowerCase();
   if (k === "analyst_rating") return rating(q.analyst_rating)?.score ?? null;
   return (q[k] as number | null | undefined) ?? null;
 }
 
-function RangeBar({ q }: { q: Quote }) {
+export function RangeBar({ q }: { q: Quote }) {
   if (q.low_52w == null || q.high_52w == null || q.price == null || q.high_52w <= q.low_52w)
     return <span className="muted">—</span>;
   const p = Math.max(0, Math.min(1, (q.price - q.low_52w) / (q.high_52w - q.low_52w)));
@@ -109,6 +110,7 @@ export function SectorTable({
         <table>
           <thead>
             <tr>
+              <th className="star-col" aria-label="Watchlist" />
               {COLS.map((c) => (
                 <th
                   key={c.key}
@@ -126,10 +128,10 @@ export function SectorTable({
           </thead>
           <tbody>
             {loading && !rows.length && (
-              <tr><td colSpan={COLS.length} className="empty">Loading…</td></tr>
+              <tr><td colSpan={COLS.length + 1} className="empty">Loading…</td></tr>
             )}
             {!loading && !rows.length && (
-              <tr><td colSpan={COLS.length} className="empty">No companies match.</td></tr>
+              <tr><td colSpan={COLS.length + 1} className="empty">No companies match.</td></tr>
             )}
             {rows.map((q) => {
               const r = rating(q.analyst_rating);
@@ -140,6 +142,7 @@ export function SectorTable({
                   tabIndex={0}
                   onKeyDown={(e) => e.key === "Enter" && onSelect({ symbol: q.symbol, name: q.name, kind: "stock", currency: q.currency })}
                 >
+                  <td className="star-col"><WatchStar symbol={q.symbol} /></td>
                   <td className="num muted">{q.rank}</td>
                   <td className="company">
                     <span className="sym">{ticker(q.symbol)}</span>

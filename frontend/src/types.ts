@@ -31,6 +31,7 @@ export interface Quote {
   market_time?: string | null;
   quote_type?: string | null;
   sector?: string;
+  sector_name?: string;
   rank?: number;
   region?: RegionId | null;
 }
@@ -266,4 +267,6 @@ export interface Selection {
   name?: string;
   kind: "stock" | "index";
   currency?: string | null;
+  /** The stock's own market, when it can differ from the region on screen (watchlist). */
+  region?: RegionId;
 }

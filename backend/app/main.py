@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 RegionId = Literal["india", "world"]
+MAX_QUOTES = 200
 
 
 @asynccontextmanager
@@ -77,8 +78,7 @@ def status():
 
 @app.post("/api/refresh", status_code=202)
 def refresh():
-    service.trigger_refresh()
-    return {"accepted": True}
+    return {"accepted": True, "accepted_at": service.trigger_refresh()}
 
 
 @app.get("/api/regions")
@@ -152,6 +152,28 @@ def stock(symbol: str):
         return {"region": None, **quotes[symbol]}
     rid, row = found
     return {"region": rid, **row}
+
+
+@app.get("/api/quotes")
+def quotes(symbols: str = Query(..., min_length=1, description="Comma-separated tickers")):
+    """Quotes for a list of symbols across all regions, in the requested order (watchlist)."""
+    wanted = list(dict.fromkeys(s.strip() for s in symbols.split(",") if s.strip()))
+    if len(wanted) > MAX_QUOTES:
+        raise HTTPException(400, f"At most {MAX_QUOTES} symbols per request")
+    wanted_set = set(wanted)
+    found: dict[str, dict] = {}
+    for rid, reg in REGIONS.items():
+        snap = _snapshot_or_503(rid)
+        for sec_id, rows in snap["sector_rows"].items():
+            for r in rows:
+                if r["symbol"] in wanted_set:
+                    found[r["symbol"]] = {"region": rid, "sector_name": reg.sector_by_id[sec_id].name, **r}
+    # Symbols outside the tracked universe (e.g. opened from a shared link) are looked up live.
+    if missing := sorted(wanted_set - set(found)):
+        live = service.cached(f"quotes:{','.join(missing)}", config.INTRADAY_CHART_CACHE_SECONDS,
+                              lambda: market.fetch_quotes(missing))
+        found.update({sym: {"region": None, **q} for sym, q in live.items()})
+    return [found[s] for s in wanted if s in found]
 
 
 @app.get("/api/chart/{symbol}")
@@ -228,6 +250,8 @@ if (config.FRONTEND_DIST / "index.html").exists():
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
+        if path.startswith("api/"):
+            raise HTTPException(404, f"Unknown API path '/{path}'")
         file = config.FRONTEND_DIST / path
         if path and file.is_file():
             return FileResponse(file)

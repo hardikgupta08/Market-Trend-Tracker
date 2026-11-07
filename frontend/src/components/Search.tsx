@@ -3,6 +3,7 @@ import { api, enc } from "../api";
 import type { SearchHit } from "../types";
 import { price, ticker } from "../format";
 import { Change } from "./Change";
+import { WatchStar } from "./WatchStar";
 
 export function Search({ onPick }: { onPick: (hit: SearchHit) => void }) {
   const [q, setQ] = useState("");
@@ -77,6 +78,7 @@ export function Search({ onPick }: { onPick: (hit: SearchHit) => void }) {
         <ul className="search-results" role="listbox">
           {hits.map((h, i) => (
             <li key={h.symbol} role="option" aria-selected={i === active}>
+              <WatchStar symbol={h.symbol} />
               <button onMouseEnter={() => setActive(i)} onClick={() => pick(h)}>
                 <span className="sym">{ticker(h.symbol)}</span>
                 <span className="cname">{h.name}</span>

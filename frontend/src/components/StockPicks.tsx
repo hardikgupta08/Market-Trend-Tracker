@@ -2,6 +2,7 @@ import { useApi } from "../api";
 import type { Pick, PicksResponse, RegionId, Selection } from "../types";
 import { marketCap, pct, price, ticker } from "../format";
 import { Change } from "./Change";
+import { WatchStar } from "./WatchStar";
 
 const STATUS_LABEL: Record<Pick["status"], string> = {
   active: "Active",
@@ -70,6 +71,7 @@ export function StockPicks({
           <table className="picks-table">
             <thead>
               <tr>
+                <th className="star-col" aria-label="Watchlist" />
                 <th>Stock</th>
                 <th title="Analyst consensus: 1 = Strong Buy … 5 = Sell">Consensus</th>
                 <th className="num" title="Price when the screen ran">Entry</th>
@@ -90,6 +92,7 @@ export function StockPicks({
                   onKeyDown={(e) => e.key === "Enter" && onSelect({ symbol: p.symbol, name: p.name, kind: "stock", currency: p.currency })}
                   title={p.reasons.join("\n")}
                 >
+                  <td className="star-col"><WatchStar symbol={p.symbol} /></td>
                   <td>
                     <span className="company">
                       <span className="sym">{ticker(p.symbol)}</span>

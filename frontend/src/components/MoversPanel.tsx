@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Overview, Selection } from "../types";
 import { marketCap, pct, price, ticker, volume } from "../format";
 import { Change } from "./Change";
+import { WatchStar } from "./WatchStar";
 
 type Tab = "gainers" | "losers" | "active" | "near_high";
 const TABS: [Tab, string][] = [
@@ -55,8 +56,9 @@ export function MoversPanel({
       </header>
       <ul className="movers">
         {overview.movers[tab].map((m) => (
-          <li key={m.symbol}>
-            <button className="mover" onClick={() => onSelect({ symbol: m.symbol, name: m.name, kind: "stock", currency })}>
+          <li key={m.symbol} className="mover-row">
+            <WatchStar symbol={m.symbol} />
+            <button className="mover"onClick={() => onSelect({ symbol: m.symbol, name: m.name, kind: "stock", currency })}>
               <span className="mover-id">
                 <span className="sym">{ticker(m.symbol)}</span>
                 <span className="cname">{m.name} · {sectorNames[m.sector] ?? m.sector}</span>

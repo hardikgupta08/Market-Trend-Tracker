@@ -70,9 +70,11 @@ def stop_scheduler():
 
 # ---------- jobs ----------
 
-def _run_job(name: str, fn):
+def _run_job(name: str, fn, wait: bool = False):
+    """Run fn under the job's lock. With wait (manual refresh), queue behind a run already in
+    progress rather than skipping, since that run may not cover every region."""
     lock = _refresh_locks[name]
-    if not lock.acquire(blocking=False):
+    if not lock.acquire(blocking=wait, timeout=60 if wait else -1):
         log.info("%s refresh already running; skipped", name)
         return False
     _running.add(name)
@@ -143,7 +145,7 @@ def refresh_markets(force: bool = False):
         # Regions are fetched concurrently (mostly network wait), and each is served as soon as it is ready.
         with ThreadPoolExecutor(max_workers=len(due)) as pool:
             return "; ".join(pool.map(one, due))
-    return _run_job("markets", work)
+    return _run_job("markets", work, wait=force)
 
 
 def _record_history(snap: dict):
@@ -207,7 +209,7 @@ def refresh_news(force: bool = False):
             store.save_snapshot(f"news:{rid}", payload, payload["updated_at"])
             parts.append(f"{rid}: {len(items)} items")
         return "; ".join(parts)
-    return _run_job("news", work)
+    return _run_job("news", work, wait=force)
 
 
 def keep_alive():
@@ -220,10 +222,13 @@ def keep_alive():
         log.warning("keep-alive ping to %s failed: %s", url, exc)
 
 
-def trigger_refresh():
-    """Kick off both refreshes in the background (used by POST /api/refresh)."""
+def trigger_refresh() -> str:
+    """Kick off both refreshes in the background (used by POST /api/refresh).
+    Returns the server time; snapshots stamped later than this include the refresh."""
+    accepted_at = _now()
     threading.Thread(target=refresh_markets, kwargs={"force": True}, daemon=True).start()
     threading.Thread(target=refresh_news, kwargs={"force": True}, daemon=True).start()
+    return accepted_at
 
 
 # ---------- reads ----------

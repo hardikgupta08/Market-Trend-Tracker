@@ -12,14 +12,21 @@ import { DetailDrawer } from "./components/DetailDrawer";
 import { Search } from "./components/Search";
 import { SectorBriefs } from "./components/SectorBriefs";
 import { StockPicks } from "./components/StockPicks";
+import { Watchlist } from "./components/Watchlist";
+import { useWatchlist } from "./watchlist";
 
 type Theme = "dark" | "light";
-type View = "dashboard" | "briefs" | "picks";
+type View = "dashboard" | "briefs" | "picks" | "watchlist";
 const VIEWS: [View, string][] = [
   ["dashboard", "Dashboard"],
   ["briefs", "Sector Brief"],
   ["picks", "Stock Picks"],
+  ["watchlist", "Watchlist"],
 ];
+const REFRESH_POLL_MS = 1000;
+const REFRESH_TIMEOUT_MS = 90_000;
+const REFRESH_NOTE_MS = 5000;
+type RefreshNote = { ok: boolean; text: string };
 type Palette = "gr" | "br";
 
 function stored<T extends string>(key: string, fallback: T): T {
@@ -57,6 +64,8 @@ export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [now, setNow] = useState(Date.now());
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState<RefreshNote | null>(null);
+  const watchCount = useWatchlist().length;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -98,6 +107,8 @@ export default function App() {
   const marketVersion = regionStatus?.updated_at ?? 0;
   const newsVersion = regionStatus?.news_updated_at ?? 0;
   const picksVersion = `${regionStatus?.picks_generated_at}|${marketVersion}`;
+  // The watchlist and drawer can show stocks from either market.
+  const allMarketsVersion = `${status?.regions.india.updated_at}|${status?.regions.world.updated_at}`;
 
   const overview = useApi<Overview>(`/markets/${region}/overview`, marketVersion);
   const ov = overview.data?.region === region ? overview.data : null;
@@ -127,13 +138,33 @@ export default function App() {
     setSelection({ symbol: h.symbol, name: h.name, kind: "stock", currency: h.currency });
   };
 
+  /** Trigger a refresh and stay busy until the new data is actually available to show. */
   const manualRefresh = async () => {
     setRefreshing(true);
+    setRefreshNote(null);
+    let note: RefreshNote = { ok: false, text: "Refresh failed" };
     try {
-      await api("/refresh", { method: "POST" });
-    } finally {
-      window.setTimeout(() => setRefreshing(false), 4000);
+      const { accepted_at } = await api<{ accepted_at: string }>("/refresh", { method: "POST" });
+      const since = Date.parse(accepted_at);
+      const deadline = Date.now() + REFRESH_TIMEOUT_MS;
+      note = { ok: false, text: "Refresh timed out" };
+      while (Date.now() < deadline) {
+        await new Promise((r) => window.setTimeout(r, REFRESH_POLL_MS));
+        const s = await api<Status>("/status").catch(() => null);
+        if (!s) continue;
+        setStatus(s);
+        const fresh = Object.values(s.regions).every((r) => r.updated_at && Date.parse(r.updated_at) >= since);
+        if (fresh && !s.running.some((j) => j === "markets" || j === "news")) {
+          note = { ok: true, text: "Refreshed" };
+          break;
+        }
+      }
+    } catch {
+      /* note already says it failed */
     }
+    setRefreshing(false);
+    setRefreshNote(note);
+    window.setTimeout(() => setRefreshNote(null), REFRESH_NOTE_MS);
   };
 
   const closeDrawer = useCallback(() => setSelection(null), []);
@@ -160,6 +191,7 @@ export default function App() {
           {VIEWS.map(([id, label]) => (
             <button key={id} role="tab" aria-selected={view === id} onClick={() => setView(id)}>
               {label}
+              {id === "watchlist" && watchCount > 0 && <span className="tab-count">{watchCount}</span>}
             </button>
           ))}
         </nav>
@@ -167,8 +199,13 @@ export default function App() {
         <div className="status">
           <span className={`pill state-${regionStatus?.market_state ?? "NA"}`}>{marketState(regionStatus?.market_state)}</span>
           <span className="muted small" title={regionStatus?.updated_at ?? ""}>
-            Updated {clock(regionStatus?.updated_at)} · next in {countdown(status?.next_run.markets, now)}
+            Updated {clock(regionStatus?.updated_at, true)} · next in {countdown(status?.next_run.markets, now)}
           </span>
+          {refreshNote && (
+            <span className={`refresh-note small ${refreshNote.ok ? "ok" : "bad"}`} role="status">
+              {refreshNote.text}
+            </span>
+          )}
           <button className={`icon-btn ${busy ? "spin" : ""}`} onClick={manualRefresh} disabled={busy} title="Refresh now" aria-label="Refresh now">
             ⟳
           </button>
@@ -188,7 +225,9 @@ export default function App() {
 
       <TickerTape items={tape} onSelect={setSelection} />
 
-      {!ov ? (
+      {view === "watchlist" ? (
+        <Watchlist region={region} version={allMarketsVersion} onSelect={setSelection} />
+      ) : !ov ? (
         <div className="loading-screen">
           {overview.error && !overview.loading ? (
             <p>Couldn't reach the API: {overview.error}</p>
@@ -237,7 +276,9 @@ export default function App() {
         otherwise) · News every {status?.news_interval_minutes ?? 5} min · Picks rebuilt daily · Not investment advice
       </footer>
 
-      {selection && <DetailDrawer selection={selection} region={region} indexLookup={indexLookup} onClose={closeDrawer} />}
+      {selection && (
+        <DetailDrawer selection={selection} region={region} indexLookup={indexLookup} version={allMarketsVersion} onClose={closeDrawer} />
+      )}
     </div>
   );
 }

@@ -71,9 +71,9 @@ export function timeAgo(iso: string | null | undefined, now = Date.now()) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-export function clock(iso: string | null | undefined) {
+export function clock(iso: string | null | undefined, seconds = false) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: seconds ? "2-digit" : undefined });
 }
 
 export function countdown(iso: string | null | undefined, now = Date.now()) {
